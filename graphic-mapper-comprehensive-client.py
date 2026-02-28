@@ -132,7 +132,7 @@ def run_comparison():
         report_data = []
         for idx in common_keys:
             row_diff = { "Key_ID": idx }
-            changed = False
+            row_match = True
             for c1, c2 in mapping.items():
                 v1, v2 = df1.at[idx, c1], df2.at[idx, c2]
                 
@@ -142,21 +142,35 @@ def run_comparison():
                 
                 if str(v1) != str(v2):
                     row_diff[f"{c1} vs {c2}"] = "no match"
-                    changed = True
+                    row_match = False
                 else:
                     row_diff[f"{c1} vs {c2}"] = "match"
-            if changed: report_data.append(row_diff)
+            
+            row_diff["Row_Status"] = "Match" if row_match else "Mismatch"
+            report_data.append(row_diff)
         
-        df_changes = pd.DataFrame(report_data)
+        df_report = pd.DataFrame(report_data)
+        
+        # Reorder columns to put Row_Status near the front
+        if not df_report.empty:
+            cols = list(df_report.columns)
+            if "Row_Status" in cols:
+                cols.insert(1, cols.pop(cols.index("Row_Status")))
+                df_report = df_report[cols]
 
         # 4. Save Results to Multiple Sheets (Excel) or Multiple CSVs
         save_folder = filedialog.askdirectory(title="Select Folder to Save Reports")
         if save_folder:
-            if not df_changes.empty: df_changes.to_csv(f"{save_folder}/data_changes.csv", index=False)
+            if not df_report.empty: df_report.to_csv(f"{save_folder}/full_comparison_report.csv", index=False)
             if not df_missing.empty: df_missing.to_csv(f"{save_folder}/missing_rows.csv", index=False)
             if not df_new.empty: df_new.to_csv(f"{save_folder}/new_rows.csv", index=False)
             
-            messagebox.showinfo("Success", f"Reports generated:\n- Changes: {len(df_changes)}\n- Missing: {len(df_missing)}\n- New: {len(df_new)}")
+            # Stats
+            total = len(df_report)
+            mismatches = len(df_report[df_report['Row_Status'] == 'Mismatch']) if not df_report.empty else 0
+            matches = total - mismatches
+            
+            messagebox.showinfo("Success", f"Reports generated:\n- Total Rows Compared: {total}\n- Matches: {matches}\n- Mismatches: {mismatches}\n- Missing in F2: {len(df_missing)}\n- New in F2: {len(df_new)}")
 
     except Exception as e:
         messagebox.showerror("Error", str(e))
